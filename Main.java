@@ -1,13 +1,17 @@
 import java.util.Scanner;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 class TrabajoSP{
     String nombre;
     int duracion;
     int llegada;
+    boolean completado;
     public void Trabajo(String nombre, int duracion, int llegada){
         this.nombre=nombre;
         this.duracion=duracion;
         this.llegada=llegada;
+        this.completado=false;
     }
 }
 class TrabajoCP{
@@ -15,11 +19,17 @@ class TrabajoCP{
     int duracion;
     int llegada;
     int prioridad;
+    boolean completado;
+    int restante;
+    boolean enCola;
     public void Trabajo(String nombre, int duracion, int llegada, int prioridad){
         this.nombre=nombre;
         this.duracion=duracion;
         this.llegada=llegada;
         this.prioridad=prioridad;
+        this.completado=false;
+        this.restante=duracion;
+        this.enCola=false;
     }
 }
 
@@ -71,7 +81,7 @@ public class Main{
             System.out.println("\n=== TRABAJOS INGRESADOS ===\n");
 
             // Encabezado
-            System.out.printf("%-10s %-10s %-10s %-10s\n", "Nombre", "Llegada", "Duracion", "Prioridad");
+            System.out.printf("%-10s %-10s %-10s %-10s\n", "Nombre", "Llegada", "Rafagas", "Prioridad");
             System.out.println("--------------------------------------------------");
 
             if (tipoAlgoritmo == 3 || tipoAlgoritmo == 4) {
@@ -87,8 +97,8 @@ public class Main{
             }
             
             System.out.println("--------------------------------------------------\n");
-            int waitT=0;
-            int respT=0;
+            double waitT=0;
+            double respT=0;
             if (tipoAlgoritmo == 1) {
                 trabajosSP.sort((a, b) -> a.llegada - b.llegada);
                 int tiempoActual = 0;
@@ -105,14 +115,168 @@ public class Main{
                     tiempoActual = fin;
                 }
             } else if (tipoAlgoritmo == 2) {
+                int tiempoActual = 0;
+                int completados = 0;
+                int total = trabajosSP.size();
+
+                while (completados < total) {
+                    TrabajoSP seleccionado = null;
+
+                    for (TrabajoSP t : trabajosSP) {
+                        if (!t.completado && t.llegada <= tiempoActual) {
+                            if (seleccionado == null || t.duracion < seleccionado.duracion) {
+                                seleccionado = t;
+                            }
+                        }
+                    }
+
+                    if (seleccionado == null) {
+                        tiempoActual++;
+                        continue;
+                    }
+
+                    int inicio = tiempoActual;
+                    int fin = inicio + seleccionado.duracion;
+                    waitT += inicio - seleccionado.llegada;
+                    respT += fin;
+
+                    System.out.printf("Trabajo: %s | Inicio: %d | Fin: %d\n",
+                            seleccionado.nombre, inicio, fin);
+
+                    tiempoActual = fin;
+                    seleccionado.completado = true;
+                    completados++;
+                }
+
                 
             } else if (tipoAlgoritmo == 3) {
-                
+                int tiempoActual = 0;
+                int completados = 0;
+
+                while (completados < trabajosCP.size()) {
+                    TrabajoCP seleccionado = null;
+
+                    for (TrabajoCP t : trabajosCP) {
+                        if (!t.completado && t.llegada <= tiempoActual) {
+
+                            if (seleccionado == null || t.prioridad < seleccionado.prioridad) {
+                                seleccionado = t;
+                            }
+
+                            // desempate: si tienen misma prioridad, escoger el que llegó antes
+                            else if (seleccionado != null &&
+                                    t.prioridad == seleccionado.prioridad &&
+                                    t.llegada < seleccionado.llegada) {
+                                seleccionado = t;
+                            }
+                        }
+                    }
+
+                    // si no hay ningún trabajo disponible todavía
+                    if (seleccionado == null) {
+                        tiempoActual++;
+                        continue;
+                    }
+
+                    int inicio = tiempoActual;
+                    int fin = inicio + seleccionado.duracion;
+
+                    int espera = inicio - seleccionado.llegada;
+                    int retorno = fin;
+
+                    waitT += espera;
+                    respT += retorno;
+
+                    System.out.printf(
+                        "Trabajo: %s | Inicio: %d | Fin: %d | Prioridad: %d\n",
+                        seleccionado.nombre,
+                        inicio,
+                        fin,
+                        seleccionado.prioridad
+                    );
+
+                    tiempoActual = fin;
+                    seleccionado.completado = true;
+                    completados++;
+                }
             } else if (tipoAlgoritmo == 4) {
-                
-            } else {
+    System.out.print("\nIngrese el quantum: ");
+    int quantum = sc.nextInt();
+
+    int tiempoActual = 0;
+    int completados = 0;
+
+    Queue<TrabajoCP> cola = new LinkedList<>();
+
+    trabajosCP.sort((a, b) -> a.llegada - b.llegada);
+
+    while (completados < trabajosCP.size()) {
+
+        // agregar trabajos disponibles al inicio
+        for (TrabajoCP t : trabajosCP) {
+            if (!t.completado && !t.enCola && t.restante > 0 && t.llegada <= tiempoActual) {
+                cola.add(t);
+                t.enCola = true;
+            }
+        }
+
+        if (cola.isEmpty()) {
+            tiempoActual++;
+            continue;
+        }
+
+        TrabajoCP actual = cola.poll();
+        actual.enCola = false;
+
+        int inicio = tiempoActual;
+        int ejecucion = Math.min(quantum, actual.restante);
+        int fin = inicio + ejecucion;
+
+        actual.restante -= ejecucion;
+        tiempoActual = fin;
+
+        System.out.printf(
+            "Trabajo: %s | Inicio: %d | Fin: %d | Ejecutado: %d | Restante: %d\n",
+            actual.nombre,
+            inicio,
+            fin,
+            ejecucion,
+            actual.restante
+        );
+
+        if (actual.restante == 0) {
+            actual.completado = true;
+            completados++;
+
+            int retorno = tiempoActual - actual.llegada;
+            int espera = retorno - actual.duracion;
+
+            waitT += espera;
+            respT += fin;
+        }
+
+        // agregar nuevos que llegaron durante la ejecución, EXCEPTO el actual
+        for (TrabajoCP t : trabajosCP) {
+            if (t != actual && !t.completado && !t.enCola && t.restante > 0 && t.llegada <= tiempoActual) {
+                cola.add(t);
+                t.enCola = true;
+            }
+        }
+
+        // si no terminó, vuelve al final
+        if (!actual.completado) {
+            cola.add(actual);
+            actual.enCola = true;
+        }
+    }
+}else {
                 System.out.println("Opción no válida.");
             }
+
+            waitT = waitT / cantT;
+            respT = respT / cantT;
+            System.out.printf("\nTiempo de espera promedio: %.2f\n", (double) waitT,"ut");
+            System.out.printf("Tiempo de respuesta promedio: %.2f\n", (double) respT,"ut");  
         }
 
     }
